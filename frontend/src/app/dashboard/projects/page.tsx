@@ -1,12 +1,15 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { getProjects, getClients, createProject, deleteProject } from "@/lib/api";
-import { Plus, Trash2, FolderOpen, Folder } from "lucide-react";
+import { Plus, Trash2, FolderOpen, Folder, Search } from "lucide-react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 
 interface Project {
     id: string;
     name: string;
     slug: string;
+    client_id: string;
     client_name: string;
     client_slug: string;
     created_at: string;
@@ -19,26 +22,40 @@ interface Client {
 }
 
 export default function ProjectsPage() {
+    const searchParams = useSearchParams();
+    const initialClientFilter = searchParams.get("client") || "";
+
     const [projects, setProjects] = useState<Project[]>([]);
     const [clients, setClients] = useState<Client[]>([]);
     const [loading, setLoading] = useState(true);
     const [showForm, setShowForm] = useState(false);
     const [formData, setFormData] = useState({ client_id: "", name: "", slug: "" });
     const [submitting, setSubmitting] = useState(false);
+    
+    // Filters
+    const [searchTerm, setSearchTerm] = useState("");
+    const [selectedClient, setSelectedClient] = useState(initialClientFilter);
 
     const fetchData = async () => {
         try {
-            const [projects, clients] = await Promise.all([getProjects(), getClients()]);
-            setProjects(projects.data.projects || []);
-            setClients(clients.data.clients || []);
+            const [projectsRes, clientsRes] = await Promise.all([getProjects(), getClients()]);
+            setProjects(projectsRes.data.projects || []);
+            setClients(clientsRes.data.clients || []);
         } catch {
-            // handle
+            // handle error
         } finally {
             setLoading(false);
         }
     };
 
     useEffect(() => { fetchData(); }, []);
+
+    // Update selected client if url param changes
+    useEffect(() => {
+        if (searchParams.get("client")) {
+            setSelectedClient(searchParams.get("client") || "");
+        }
+    }, [searchParams]);
 
     const handleCreate = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -49,25 +66,52 @@ export default function ProjectsPage() {
             setShowForm(false);
             fetchData();
         } catch {
-            // handle
+            // handle error
         } finally {
             setSubmitting(false);
         }
     };
 
-    const handleDelete = async (id: string) => {
+    const handleDelete = async (e: React.MouseEvent, id: string) => {
+        e.preventDefault();
         if (!confirm("Delete this project?")) return;
-        try { await deleteProject(id); fetchData(); } catch { /* handle */ }
+        try { await deleteProject(id); fetchData(); } catch { /* handle error */ }
     };
 
+    // Filter and group projects by client
+    const groupedProjects = useMemo(() => {
+        let filtered = projects;
+
+        if (searchTerm) {
+            filtered = filtered.filter(p => 
+                p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                p.client_name.toLowerCase().includes(searchTerm.toLowerCase())
+            );
+        }
+
+        if (selectedClient) {
+            filtered = filtered.filter(p => p.client_id === selectedClient);
+        }
+
+        const groups: Record<string, { client_name: string, projects: Project[] }> = {};
+        for (const p of filtered) {
+            if (!groups[p.client_id]) {
+                groups[p.client_id] = { client_name: p.client_name, projects: [] };
+            }
+            groups[p.client_id].projects.push(p);
+        }
+
+        return groups;
+    }, [projects, searchTerm, selectedClient]);
+
     return (
-        <div className="space-y-6">
-            <div className="flex items-center justify-between">
+        <div className="space-y-8">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-bold tracking-tight flex items-center gap-3">
                         <FolderOpen size={24} /> Projects
                     </h1>
-                    <p className="text-muted text-sm mt-1">Manage projects for each client</p>
+                    <p className="text-muted text-sm mt-1">Manage projects per client</p>
                 </div>
                 <button
                     onClick={() => setShowForm(!showForm)}
@@ -77,6 +121,29 @@ export default function ProjectsPage() {
                 </button>
             </div>
 
+            {/* Filters Row */}
+            <div className="flex flex-col md:flex-row gap-4">
+                <div className="relative flex-1">
+                    <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+                    <input 
+                        type="text"
+                        placeholder="Search projects..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="w-full h-10 pl-10 pr-4 bg-surface border border-border rounded-lg text-foreground placeholder:text-muted/50 focus:outline-none focus:border-white/30 text-sm"
+                    />
+                </div>
+                <select
+                    value={selectedClient}
+                    onChange={(e) => setSelectedClient(e.target.value)}
+                    className="h-10 px-4 bg-surface border border-border rounded-lg text-foreground focus:outline-none focus:border-white/30 text-sm min-w-[200px]"
+                >
+                    <option value="">All Clients</option>
+                    {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+            </div>
+
+            {/* Create Form */}
             {showForm && (
                 <form onSubmit={handleCreate} className="bg-surface border border-border rounded-xl p-6 space-y-4 animate-fade-in">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -131,32 +198,46 @@ export default function ProjectsPage() {
                 </form>
             )}
 
+            {/* Project List */}
             {loading ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {[1, 2, 3].map((i) => <div key={i} className="h-28 rounded-xl animate-shimmer" />)}
                 </div>
-            ) : projects.length === 0 ? (
+            ) : Object.keys(groupedProjects).length === 0 ? (
                 <div className="text-center py-20">
                     <Folder size={48} className="mx-auto text-muted/30 mb-4" />
-                    <p className="text-muted">No projects yet.</p>
+                    <p className="text-muted">No projects found.</p>
                 </div>
             ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {projects.map((project, i) => (
-                        <div
-                            key={project.id}
-                            className="bg-surface border border-border rounded-xl p-5 hover:border-border-hover transition-all group animate-fade-in"
-                            style={{ animationDelay: `${i * 50}ms` }}
-                        >
-                            <div className="flex items-start justify-between">
-                                <div>
-                                    <h3 className="font-semibold">{project.name}</h3>
-                                    <p className="text-sm text-muted font-mono mt-1">{project.slug}</p>
-                                    <p className="text-xs text-muted mt-2">Client: {project.client_name}</p>
-                                </div>
-                                <button onClick={() => handleDelete(project.id)} className="p-2 text-muted hover:text-danger opacity-0 group-hover:opacity-100 transition-all">
-                                    <Trash2 size={16} />
-                                </button>
+                <div className="space-y-10">
+                    {Object.entries(groupedProjects).map(([clientId, group]) => (
+                        <div key={clientId} className="space-y-4">
+                            <div className="flex items-center gap-3 border-b border-border pb-2">
+                                <h2 className="text-lg font-semibold tracking-wide">{group.client_name}</h2>
+                                <span className="bg-surface-2 px-2 py-0.5 rounded-full text-xs font-medium text-muted">{group.projects.length}</span>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {group.projects.map((project, i) => (
+                                    <Link
+                                        href={`/dashboard/media?project=${project.id}`}
+                                        key={project.id}
+                                        className="bg-surface border border-border rounded-xl p-5 hover:border-white/20 transition-all group block relative hover:bg-surface-2"
+                                        style={{ animationDelay: `${i * 50}ms` }}
+                                    >
+                                        <div className="flex items-start justify-between">
+                                            <div>
+                                                <h3 className="font-semibold">{project.name}</h3>
+                                                <p className="text-sm text-muted font-mono mt-1">{project.slug}</p>
+                                            </div>
+                                            <button 
+                                                onClick={(e) => handleDelete(e, project.id)} 
+                                                className="p-2 text-muted hover:text-danger opacity-0 group-hover:opacity-100 transition-all absolute top-3 right-3 z-10"
+                                            >
+                                                <Trash2 size={16} />
+                                            </button>
+                                        </div>
+                                    </Link>
+                                ))}
                             </div>
                         </div>
                     ))}

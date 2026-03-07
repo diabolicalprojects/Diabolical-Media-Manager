@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { getClients, createClient, deleteClient } from "@/lib/api";
 import { Plus, Trash2, Users, Building2 } from "lucide-react";
+import Link from "next/link";
 
 interface Client {
     id: string;
@@ -145,9 +146,10 @@ export default function ClientsPage() {
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {clients.map((client, i) => (
-                        <div
+                        <Link 
+                            href={`/dashboard/projects?client=${client.id}`}
                             key={client.id}
-                            className="bg-surface border border-border rounded-xl p-5 hover:border-border-hover transition-all duration-200 group animate-fade-in"
+                            className="bg-surface border border-border rounded-xl p-5 hover:border-white/20 transition-all duration-200 group animate-fade-in block relative cursor-pointer hover:bg-surface-2"
                             style={{ animationDelay: `${i * 50}ms` }}
                         >
                             <div className="flex items-start justify-between">
@@ -156,8 +158,11 @@ export default function ClientsPage() {
                                     <p className="text-sm text-muted font-mono mt-1">{client.slug}</p>
                                 </div>
                                 <button
-                                    onClick={() => handleDelete(client.id)}
-                                    className="p-2 text-muted hover:text-danger opacity-0 group-hover:opacity-100 transition-all"
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        handleDelete(client.id);
+                                    }}
+                                    className="p-2 text-muted z-10 hover:text-danger opacity-0 group-hover:opacity-100 transition-all absolute top-3 right-3"
                                     title="Delete client"
                                 >
                                     <Trash2 size={16} />
@@ -166,7 +171,7 @@ export default function ClientsPage() {
                             <p className="text-xs text-muted mt-4">
                                 Created {new Date(client.created_at).toLocaleDateString()}
                             </p>
-                        </div>
+                        </Link>
                     ))}
                 </div>
             )}

@@ -245,10 +245,14 @@ router.get('/search', authenticateToken, async (req, res, next) => {
         const searchTerm = `%${q}%`;
 
         const result = await db.query(
-            `SELECT i.*, c.name as client_name, c.slug as client_slug
+            `SELECT i.*, c.name as client_name, c.slug as client_slug, p.name as project_name
        FROM images i
        JOIN clients c ON i.client_id = c.id
-       WHERE i.filename ILIKE $1 OR i.slug ILIKE $1
+       LEFT JOIN projects p ON i.project_id = p.id
+       WHERE i.filename ILIKE $1 
+          OR i.slug ILIKE $1
+          OR c.name ILIKE $1
+          OR p.name ILIKE $1
        ORDER BY i.created_at DESC
        LIMIT $2 OFFSET $3`,
             [searchTerm, parseInt(limit), offset]

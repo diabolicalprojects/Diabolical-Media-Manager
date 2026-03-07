@@ -24,7 +24,9 @@ interface FilePreview {
 export default function UploadPage() {
     const [clients, setClients] = useState<Client[]>([]);
     const [domains, setDomains] = useState<Domain[]>([]);
+    const [projects, setProjects] = useState<any[]>([]);
     const [clientId, setClientId] = useState("");
+    const [projectId, setProjectId] = useState("");
     const [domainId, setDomainId] = useState("");
     const [files, setFiles] = useState<FilePreview[]>([]);
     const [uploading, setUploading] = useState(false);
@@ -41,6 +43,20 @@ export default function UploadPage() {
         };
         fetchData();
     }, []);
+
+    // Fetch projects when clientId changes
+    useEffect(() => {
+        if (!clientId) {
+            setProjects([]);
+            setProjectId("");
+            return;
+        }
+        import("@/lib/api").then(({ getProjects }) => {
+            getProjects(clientId)
+                .then(res => setProjects(res.data.projects || []))
+                .catch(() => setProjects([]));
+        });
+    }, [clientId]);
 
     const onDrop = useCallback((acceptedFiles: File[]) => {
         const newFiles = acceptedFiles.map((file) => ({
@@ -82,6 +98,7 @@ export default function UploadPage() {
 
         const formData = new FormData();
         formData.append("client_id", clientId);
+        if (projectId) formData.append("project_id", projectId);
         if (domainId) formData.append("domain_id", domainId);
         files.forEach((f) => formData.append("images", f.file));
 
@@ -119,7 +136,7 @@ export default function UploadPage() {
             </div>
 
             {/* Settings */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <div className="space-y-2">
                     <label className="text-xs font-medium uppercase tracking-wider text-muted">Client *</label>
                     <select
@@ -132,6 +149,21 @@ export default function UploadPage() {
                         {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                     </select>
                 </div>
+                
+                {projects.length > 0 && (
+                    <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
+                        <label className="text-xs font-medium uppercase tracking-wider text-muted">Project (optional)</label>
+                        <select
+                            value={projectId}
+                            onChange={(e) => setProjectId(e.target.value)}
+                            className="w-full h-10 px-4 bg-surface border border-border rounded-lg text-foreground focus:outline-none focus:border-white/30 text-sm"
+                        >
+                            <option value="">No Project</option>
+                            {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                        </select>
+                    </div>
+                )}
+
                 <div className="space-y-2">
                     <label className="text-xs font-medium uppercase tracking-wider text-muted">Domain (optional)</label>
                     <select
