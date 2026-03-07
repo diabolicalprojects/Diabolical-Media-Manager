@@ -60,6 +60,49 @@ export default function MediaLibraryPage() {
         } catch { /* handle */ }
     };
 
+    const [touchStart, setTouchStart] = useState<number | null>(null);
+    const [touchEnd, setTouchEnd] = useState<number | null>(null);
+
+    const selectedIndex = selectedImage ? images.findIndex((img) => img.id === selectedImage.id) : -1;
+    const hasPrev = selectedIndex > 0;
+    const hasNext = selectedIndex !== -1 && selectedIndex < images.length - 1;
+
+    const handlePrev = () => {
+        if (selectedIndex > 0) setSelectedImage(images[selectedIndex - 1]);
+    };
+
+    const handleNext = () => {
+        if (selectedIndex !== -1 && selectedIndex < images.length - 1) setSelectedImage(images[selectedIndex + 1]);
+    };
+
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (!selectedImage) return;
+            if (e.key === "ArrowLeft") handlePrev();
+            if (e.key === "ArrowRight") handleNext();
+            if (e.key === "Escape") setSelectedImage(null);
+        };
+        window.addEventListener("keydown", handleKeyDown);
+        return () => window.removeEventListener("keydown", handleKeyDown);
+    }, [selectedImage, selectedIndex, images]);
+
+    const onTouchStart = (e: React.TouchEvent) => {
+        setTouchEnd(null);
+        setTouchStart(e.targetTouches[0].clientX);
+    };
+
+    const onTouchMove = (e: React.TouchEvent) => {
+        setTouchEnd(e.targetTouches[0].clientX);
+    };
+
+    const onTouchEnd = () => {
+        if (!touchStart || !touchEnd) return;
+        const distance = touchStart - touchEnd;
+        const minSwipeDistance = 50;
+        if (distance > minSwipeDistance) handleNext();
+        if (distance < -minSwipeDistance) handlePrev();
+    };
+
     const getCdnUrl = (image: ImageItem) => {
         // Because backend express.static mounts '/storage/clients' at '/'
         // We remove 'clients/' from the relative path and normalize backslashes
@@ -91,8 +134,33 @@ export default function MediaLibraryPage() {
                     onClick={(e) => e.stopPropagation()}
                 >
                     {/* Left: Image Preview */}
-                    <div className="md:w-3/5 bg-surface-2 flex items-center justify-center p-4 relative min-h-[300px]">
-                        <div className="absolute inset-0 pattern-dots text-muted/20 opacity-30" />
+                    <div 
+                        className="md:w-3/5 bg-surface-2 flex items-center justify-center p-4 relative min-h-[300px]"
+                        onTouchStart={onTouchStart}
+                        onTouchMove={onTouchMove}
+                        onTouchEnd={onTouchEnd}
+                    >
+                        <div className="absolute inset-0 pattern-dots text-muted/20 opacity-30 pointer-events-none" />
+                        
+                        {hasPrev && (
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); handlePrev(); }} 
+                                className="absolute left-4 top-1/2 -translate-y-1/2 z-50 p-2 sm:p-3 bg-black/50 hover:bg-black/80 text-white rounded-full transition-colors backdrop-blur-md border border-white/10"
+                                title="Previous image (Left Arrow)"
+                            >
+                                <ChevronLeft size={20} />
+                            </button>
+                        )}
+                        {hasNext && (
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); handleNext(); }} 
+                                className="absolute right-4 top-1/2 -translate-y-1/2 z-50 p-2 sm:p-3 bg-black/50 hover:bg-black/80 text-white rounded-full transition-colors backdrop-blur-md border border-white/10"
+                                title="Next image (Right Arrow)"
+                            >
+                                <ChevronRight size={20} />
+                            </button>
+                        )}
+
                         {selectedImage.format === 'svg' || selectedImage.format === 'svg+xml' ? (
                             <img src={getCdnUrl(selectedImage)} alt={selectedImage.filename} className="w-full h-full object-contain object-center z-10" />
                         ) : (
@@ -177,7 +245,7 @@ export default function MediaLibraryPage() {
             </div>,
             document.body
         );
-    }, [selectedImage, copied]);
+    }, [selectedImage, copied, images, selectedIndex, hasPrev, hasNext]);
 
     return (
         <div className="space-y-6">

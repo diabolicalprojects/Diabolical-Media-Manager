@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState, useMemo } from "react";
 import { searchImages, deleteImage } from "@/lib/api";
-import { Search as SearchIcon, ImageOff, Trash2, Copy, ExternalLink, Image as ImageIcon } from "lucide-react";
+import { Search as SearchIcon, ImageOff, Trash2, Copy, ExternalLink, Image as ImageIcon, ChevronLeft, ChevronRight } from "lucide-react";
 import { createPortal } from "react-dom";
 
 interface ImageResult {
@@ -81,6 +81,49 @@ export default function SearchPage() {
         } catch { /* handle error */ }
     };
 
+    const [touchStart, setTouchStart] = useState<number | null>(null);
+    const [touchEnd, setTouchEnd] = useState<number | null>(null);
+
+    const selectedIndex = selectedImage ? results.findIndex((img) => img.id === selectedImage.id) : -1;
+    const hasPrev = selectedIndex > 0;
+    const hasNext = selectedIndex !== -1 && selectedIndex < results.length - 1;
+
+    const handlePrev = () => {
+        if (selectedIndex > 0) setSelectedImage(results[selectedIndex - 1]);
+    };
+
+    const handleNext = () => {
+        if (selectedIndex !== -1 && selectedIndex < results.length - 1) setSelectedImage(results[selectedIndex + 1]);
+    };
+
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (!selectedImage) return;
+            if (e.key === "ArrowLeft") handlePrev();
+            if (e.key === "ArrowRight") handleNext();
+            if (e.key === "Escape") setSelectedImage(null);
+        };
+        window.addEventListener("keydown", handleKeyDown);
+        return () => window.removeEventListener("keydown", handleKeyDown);
+    }, [selectedImage, selectedIndex, results]);
+
+    const onTouchStart = (e: React.TouchEvent) => {
+        setTouchEnd(null);
+        setTouchStart(e.targetTouches[0].clientX);
+    };
+
+    const onTouchMove = (e: React.TouchEvent) => {
+        setTouchEnd(e.targetTouches[0].clientX);
+    };
+
+    const onTouchEnd = () => {
+        if (!touchStart || !touchEnd) return;
+        const distance = touchStart - touchEnd;
+        const minSwipeDistance = 50;
+        if (distance > minSwipeDistance) handleNext();
+        if (distance < -minSwipeDistance) handlePrev();
+    };
+
     const Modal = useMemo(() => {
         if (!selectedImage || typeof document === 'undefined') return null;
         return createPortal(
@@ -90,8 +133,33 @@ export default function SearchPage() {
                     onClick={(e) => e.stopPropagation()}
                 >
                     {/* Left: Image Preview */}
-                    <div className="md:w-3/5 bg-surface-2 flex items-center justify-center p-4 relative min-h-[300px]">
-                        <div className="absolute inset-0 pattern-dots text-muted/20 opacity-30" />
+                    <div 
+                        className="md:w-3/5 bg-surface-2 flex items-center justify-center p-4 relative min-h-[300px]"
+                        onTouchStart={onTouchStart}
+                        onTouchMove={onTouchMove}
+                        onTouchEnd={onTouchEnd}
+                    >
+                        <div className="absolute inset-0 pattern-dots text-muted/20 opacity-30 pointer-events-none" />
+                        
+                        {hasPrev && (
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); handlePrev(); }} 
+                                className="absolute left-4 top-1/2 -translate-y-1/2 z-50 p-2 sm:p-3 bg-black/50 hover:bg-black/80 text-white rounded-full transition-colors backdrop-blur-md border border-white/10"
+                                title="Previous image (Left Arrow)"
+                            >
+                                <ChevronLeft size={20} />
+                            </button>
+                        )}
+                        {hasNext && (
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); handleNext(); }} 
+                                className="absolute right-4 top-1/2 -translate-y-1/2 z-50 p-2 sm:p-3 bg-black/50 hover:bg-black/80 text-white rounded-full transition-colors backdrop-blur-md border border-white/10"
+                                title="Next image (Right Arrow)"
+                            >
+                                <ChevronRight size={20} />
+                            </button>
+                        )}
+
                         {selectedImage.format === 'svg' || selectedImage.format === 'svg+xml' ? (
                             <img src={getCdnUrl(selectedImage)} alt={selectedImage.filename} className="w-full h-full object-contain object-center z-10" />
                         ) : (
@@ -173,7 +241,7 @@ export default function SearchPage() {
             </div>,
             document.body
         );
-    }, [selectedImage, copied]);
+    }, [selectedImage, copied, results, selectedIndex, hasPrev, hasNext]);
 
 
     return (
