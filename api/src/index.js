@@ -56,6 +56,18 @@ app.use((err, req, res, next) => {
     });
 });
 
+// Serve static files for CDN
+app.use('/', express.static(path.join(storagePath, 'clients'), {
+    maxAge: '30d',
+    immutable: true
+}));
+
+// Route for dynamic transformations if file not found statically
+app.use('/:client/:filename', async (req, res, next) => {
+    // Basic fallback or custom image transformer
+    res.status(404).json({ error: 'Endpoint not found or file does not exist' });
+});
+
 // 404 handler
 app.use((req, res) => {
     res.status(404).json({ error: 'Endpoint not found' });
