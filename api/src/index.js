@@ -12,6 +12,7 @@ const domainRoutes = require('./routes/domains');
 const imageRoutes = require('./routes/images');
 const tagRoutes = require('./routes/tags');
 const userRoutes = require('./routes/users');
+const keyRoutes = require('./routes/keys');
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -46,6 +47,7 @@ app.use('/api/domains', domainRoutes);
 app.use('/api/images', imageRoutes);
 app.use('/api/tags', tagRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/keys', keyRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

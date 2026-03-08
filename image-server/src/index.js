@@ -4,11 +4,26 @@ const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 const sharp = require('sharp');
+const { Pool } = require('pg');
 
 const app = express();
 const PORT = process.env.PORT || 4002;
 const STORAGE_PATH = process.env.STORAGE_PATH || '/storage';
 const CACHE_PATH = path.join(STORAGE_PATH, 'cache');
+
+// Database connection
+const pool = process.env.DATABASE_URL ? new Pool({
+    connectionString: process.env.DATABASE_URL,
+    max: 10,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 2000,
+}) : null;
+
+if (pool) {
+    pool.on('error', (err) => {
+        console.error('[CDN DB] Error:', err);
+    });
+}
 
 // ----- CORS: allow any origin to consume CDN assets -----
 app.use(cors({
@@ -40,6 +55,53 @@ app.get('/:clientSlug/*', async (req, res) => {
         const width = w ? parseInt(w) : null;
         const height = h ? parseInt(h) : null;
         const quality = q ? parseInt(q) : 80;
+
+        // API Key Validation
+        const apiKey = req.query.api_key || req.headers['x-api-key'];
+        
+        if (pool) {
+            // Only validate if a DB connection is provided
+            if (!apiKey) {
+                return res.status(401).json({ error: 'API key is required' });
+            }
+
+            // Verify API Key
+            const hasProject = imagePath.includes('/');
+            let isValid = false;
+
+            try {
+                // If the path relates to a project, let's just validate if the API key exists
+                // and gets the correct client_id/project_id
+                const keyResult = await pool.query(
+                    `SELECT ak.id, ak.client_id, ak.project_id, c.slug as client_slug
+                     FROM api_keys ak
+                     JOIN clients c ON c.id = COALESCE(ak.client_id, (SELECT client_id FROM projects WHERE id = ak.project_id))
+                     WHERE ak.key = $1`,
+                    [apiKey]
+                );
+
+                if (keyResult.rows.length === 0) {
+                    return res.status(403).json({ error: 'Invalid API key' });
+                }
+
+                const keyData = keyResult.rows[0];
+                
+                // Verify the key belongs to the requested clientSlug
+                if (keyData.client_slug !== clientSlug) {
+                    return res.status(403).json({ error: 'API key does not have access to this client' });
+                }
+
+                // If project_id is tied to the key, we should ideally verify the domain. For now, basic validation is fine.
+                isValid = true;
+
+                // Update last_used_at async
+                pool.query('UPDATE api_keys SET last_used_at = NOW() WHERE id = $1', [keyData.id]).catch(console.error);
+                
+            } catch (dbError) {
+                console.error('[CDN DB Query Error]', dbError);
+                return res.status(500).json({ error: 'Authentication service unavailable' });
+            }
+        }
 
         // Determine source file
         const originalPath = path.join(STORAGE_PATH, 'clients', clientSlug);

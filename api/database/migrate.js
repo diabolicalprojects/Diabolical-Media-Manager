@@ -76,6 +76,18 @@ CREATE TABLE IF NOT EXISTS image_tags (
   PRIMARY KEY (image_id, tag_id)
 );
 
+-- API Keys table
+CREATE TABLE IF NOT EXISTS api_keys (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
+  client_id UUID REFERENCES clients(id) ON DELETE CASCADE,
+  name VARCHAR(255) NOT NULL,
+  key VARCHAR(255) UNIQUE NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  last_used_at TIMESTAMP WITH TIME ZONE,
+  CHECK (project_id IS NOT NULL OR client_id IS NOT NULL)
+);
+
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_images_client ON images(client_id);
 CREATE INDEX IF NOT EXISTS idx_images_project ON images(project_id);
@@ -86,6 +98,9 @@ CREATE INDEX IF NOT EXISTS idx_projects_client ON projects(client_id);
 CREATE INDEX IF NOT EXISTS idx_domains_project ON domains(project_id);
 CREATE INDEX IF NOT EXISTS idx_image_tags_image ON image_tags(image_id);
 CREATE INDEX IF NOT EXISTS idx_image_tags_tag ON image_tags(tag_id);
+CREATE INDEX IF NOT EXISTS idx_api_keys_project ON api_keys(project_id);
+CREATE INDEX IF NOT EXISTS idx_api_keys_client ON api_keys(client_id);
+CREATE INDEX IF NOT EXISTS idx_api_keys_key ON api_keys(key);
 `;
 
 async function migrate() {

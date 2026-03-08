@@ -88,4 +88,9 @@ export const updateUser = (id: string, data: Record<string, string>) =>
     api.put(`/users/${id}`, data);
 export const deleteUser = (id: string) => api.delete(`/users/${id}`);
 
+// API Keys
+export const getApiKeys = (projectId: string) => api.get(`/keys/project/${projectId}`);
+export const createApiKey = (projectId: string, name: string) => api.post(`/keys/project/${projectId}`, { name });
+export const deleteApiKey = (id: string) => api.delete(`/keys/${id}`);
+
 export default api;
