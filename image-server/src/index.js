@@ -55,6 +55,7 @@ app.get('/:clientSlug/*', async (req, res) => {
         const width = w ? parseInt(w) : null;
         const height = h ? parseInt(h) : null;
         const quality = q ? parseInt(q) : 80;
+        let finalFormat = format;
 
         // API Key Validation
         const apiKey = req.query.api_key || req.headers['x-api-key'];
@@ -93,6 +94,11 @@ app.get('/:clientSlug/*', async (req, res) => {
 
                 // If project_id is tied to the key, we should ideally verify the domain. For now, basic validation is fine.
                 isValid = true;
+
+                // If API Key is present and no format specified, default to webp
+                if (!finalFormat) {
+                    finalFormat = 'webp';
+                }
 
                 // Update last_used_at async
                 pool.query('UPDATE api_keys SET last_used_at = NOW() WHERE id = $1', [keyData.id]).catch(console.error);
@@ -138,7 +144,7 @@ app.get('/:clientSlug/*', async (req, res) => {
         }
 
         // Check if transformation needed
-        const needsTransformation = width || height || format;
+        const needsTransformation = width || height || finalFormat;
 
         if (!needsTransformation) {
             // Serve directly with cache headers
@@ -150,8 +156,8 @@ app.get('/:clientSlug/*', async (req, res) => {
         }
 
         // Generate cache key
-        const cacheKey = `${clientSlug}-${imagePath.replace(/[/\\]/g, '-')}-w${width || 'auto'}-h${height || 'auto'}-${format || 'original'}-q${quality}`;
-        const outputFormat = format || path.extname(sourcePath).slice(1);
+        const cacheKey = `${clientSlug}-${imagePath.replace(/[/\\]/g, '-')}-w${width || 'auto'}-h${height || 'auto'}-${finalFormat || 'original'}-q${quality}`;
+        const outputFormat = finalFormat || path.extname(sourcePath).slice(1);
         const cachePath = path.join(CACHE_PATH, `${cacheKey}.${outputFormat}`);
 
         // Check cache
@@ -174,9 +180,9 @@ app.get('/:clientSlug/*', async (req, res) => {
             });
         }
 
-        if (format) {
+        if (finalFormat) {
             const formatOptions = { quality };
-            pipeline = pipeline.toFormat(format, formatOptions);
+            pipeline = pipeline.toFormat(finalFormat, formatOptions);
         }
 
         const outputBuffer = await pipeline.toBuffer();

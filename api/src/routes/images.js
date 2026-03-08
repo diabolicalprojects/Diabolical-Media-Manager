@@ -47,6 +47,30 @@ function ensureDir(dirPath) {
     }
 }
 
+// Helper: get image variants URLs
+function getVariants(image) {
+    const cdnUrl = process.env.CDN_URL || '';
+    if (!cdnUrl) return {};
+
+    const { client_slug, domain_name, slug, format } = image;
+    const domain = domain_name || 'general';
+    const base = `${cdnUrl}/${client_slug}/${domain}/optimized/${slug}`;
+
+    const sizes = [1920, 1280, 768, 480];
+    const formats = ['webp', 'avif'];
+    const variants = {};
+
+    formats.forEach(f => {
+        variants[f] = `${base}.${f}`;
+        sizes.forEach(s => {
+            if (!variants[`${f}_responsive`]) variants[`${f}_responsive`] = {};
+            variants[`${f}_responsive`][s] = `${base}-${s}.${f}`;
+        });
+    });
+
+    return variants;
+}
+
 // POST /api/images/upload
 router.post('/upload', authenticateToken, authorizeRoles('admin', 'editor', 'api'), upload.array('images', 20), async (req, res, next) => {
     try {
@@ -177,7 +201,7 @@ router.get('/', authenticateToken, async (req, res, next) => {
 
         let query = `
       SELECT i.*, c.name as client_name, c.slug as client_slug,
-             p.name as project_name,
+             p.name as project_name, d.domain as domain_name,
              COALESCE(
                json_agg(DISTINCT t.name) FILTER (WHERE t.name IS NOT NULL),
                '[]'
@@ -185,6 +209,7 @@ router.get('/', authenticateToken, async (req, res, next) => {
       FROM images i
       JOIN clients c ON i.client_id = c.id
       LEFT JOIN projects p ON i.project_id = p.id
+      LEFT JOIN domains d ON i.domain_id = d.id
       LEFT JOIN image_tags it ON i.id = it.image_id
       LEFT JOIN tags t ON it.tag_id = t.id
     `;
@@ -210,11 +235,22 @@ router.get('/', authenticateToken, async (req, res, next) => {
             query += ' WHERE ' + conditions.join(' AND ');
         }
 
-        query += ` GROUP BY i.id, c.name, c.slug, p.name ORDER BY i.created_at DESC`;
+        query += ` GROUP BY i.id, c.name, c.slug, p.name, d.domain ORDER BY i.created_at DESC`;
         query += ` LIMIT $${paramIndex++} OFFSET $${paramIndex++}`;
         params.push(parseInt(limit), offset);
 
         const result = await db.query(query, params);
+
+        // Add variants to each image
+        const imagesWithVariants = result.rows.map(img => ({
+            ...img,
+            variants: getVariants({
+                client_slug: img.client_slug,
+                domain_name: img.domain_id ? img.domain_name : 'general', // Assuming domain_name is joined or handled
+                slug: img.slug,
+                format: img.format
+            })
+        }));
 
         // Get total count
         let countQuery = 'SELECT COUNT(*) FROM images i';
@@ -225,7 +261,7 @@ router.get('/', authenticateToken, async (req, res, next) => {
         const total = parseInt(countResult.rows[0].count);
 
         res.json({
-            images: result.rows,
+            images: imagesWithVariants,
             pagination: {
                 page: parseInt(page),
                 limit: parseInt(limit),
@@ -250,10 +286,11 @@ router.get('/search', authenticateToken, async (req, res, next) => {
         const searchTerm = `%${q}%`;
 
         const result = await db.query(
-            `SELECT i.*, c.name as client_name, c.slug as client_slug, p.name as project_name
+            `SELECT i.*, c.name as client_name, c.slug as client_slug, p.name as project_name, d.domain as domain_name
        FROM images i
        JOIN clients c ON i.client_id = c.id
        LEFT JOIN projects p ON i.project_id = p.id
+       LEFT JOIN domains d ON i.domain_id = d.id
        WHERE i.filename ILIKE $1 
           OR i.slug ILIKE $1
           OR c.name ILIKE $1
@@ -263,7 +300,18 @@ router.get('/search', authenticateToken, async (req, res, next) => {
             [searchTerm, parseInt(limit), offset]
         );
 
-        res.json({ images: result.rows, query: q });
+        // Add variants to search results
+        const imagesWithVariants = result.rows.map(img => ({
+            ...img,
+            variants: getVariants({
+                client_slug: img.client_slug,
+                domain_name: img.domain_id ? img.domain_name : 'general',
+                slug: img.slug,
+                format: img.format
+            })
+        }));
+
+        res.json({ images: imagesWithVariants, query: q });
     } catch (error) {
         next(error);
     }
@@ -274,7 +322,7 @@ router.get('/:id', authenticateToken, async (req, res, next) => {
     try {
         const result = await db.query(
             `SELECT i.*, c.name as client_name, c.slug as client_slug,
-              p.name as project_name,
+              p.name as project_name, d.domain as domain_name,
               COALESCE(
                 json_agg(json_build_object('id', t.id, 'name', t.name)) FILTER (WHERE t.id IS NOT NULL),
                 '[]'
@@ -282,10 +330,11 @@ router.get('/:id', authenticateToken, async (req, res, next) => {
        FROM images i
        JOIN clients c ON i.client_id = c.id
        LEFT JOIN projects p ON i.project_id = p.id
+       LEFT JOIN domains d ON i.domain_id = d.id
        LEFT JOIN image_tags it ON i.id = it.image_id
        LEFT JOIN tags t ON it.tag_id = t.id
        WHERE i.id = $1
-       GROUP BY i.id, c.name, c.slug, p.name`,
+       GROUP BY i.id, c.name, c.slug, p.name, d.domain`,
             [req.params.id]
         );
 
@@ -293,7 +342,15 @@ router.get('/:id', authenticateToken, async (req, res, next) => {
             return res.status(404).json({ error: 'Image not found' });
         }
 
-        res.json({ image: result.rows[0] });
+        const image = result.rows[0];
+        image.variants = getVariants({
+            client_slug: image.client_slug,
+            domain_name: image.domain_id ? image.domain_name : 'general',
+            slug: image.slug,
+            format: image.format
+        });
+
+        res.json({ image });
     } catch (error) {
         next(error);
     }
