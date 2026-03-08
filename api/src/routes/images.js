@@ -48,9 +48,14 @@ function ensureDir(dirPath) {
 }
 
 // POST /api/images/upload
-router.post('/upload', authenticateToken, authorizeRoles('admin', 'editor'), upload.array('images', 20), async (req, res, next) => {
+router.post('/upload', authenticateToken, authorizeRoles('admin', 'editor', 'api'), upload.array('images', 20), async (req, res, next) => {
     try {
-        const { client_id, project_id, domain_id } = req.body;
+        let { client_id, project_id, domain_id } = req.body;
+
+        if (req.user && req.user.role === 'api') {
+            client_id = req.user.client_id;
+            project_id = req.user.project_id;
+        }
 
         if (!client_id) {
             return res.status(400).json({ error: 'client_id is required' });

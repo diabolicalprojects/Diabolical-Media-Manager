@@ -75,6 +75,43 @@ export default function Banner({ imagePath }) {
 
 ---
 
+## Subir Imágenes mediante API Key
+
+Además de servir imágenes desde el CDN, puedes utilizar tu API Key para **subir nuevas imágenes** directamente desde otro proyecto de forma programática. La API detectará automáticamente el cliente y proyecto asignados a tu llave.
+
+**Ejemplo de subida de archivos (Node.js con `axios` y `form-data`):**
+
+```javascript
+const axios = require('axios');
+const FormData = require('form-data');
+const fs = require('fs');
+
+async function uploadImage() {
+  const form = new FormData();
+  form.append('images', fs.createReadStream('./mi-imagen.jpg'));
+  
+  // No necesitas especificar client_id ni project_id, la API los deduce de tu llave.
+  // form.append('domain_id', 'mi-dominio-opcional-id'); 
+
+  try {
+    const response = await axios.post('https://api.diabolicalservices.tech/api/images/upload', form, {
+      headers: {
+        ...form.getHeaders(),
+        'x-api-key': 'dmm_TU_API_KEY_AQUI', // Identificación y Autorización
+      },
+    });
+
+    console.log('Imagen subida exitosamente:', response.data.uploaded);
+  } catch (error) {
+    console.error('Error al subir imagen:', error.response ? error.response.data : error.message);
+  }
+}
+
+uploadImage();
+```
+
+---
+
 ## Respuestas y Códigos de Error
 
 El servidor CDN devolverá los siguientes códigos HTTP dependiendo del estado de la autenticación:
