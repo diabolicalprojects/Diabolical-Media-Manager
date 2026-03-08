@@ -1,5 +1,6 @@
 require('dotenv').config();
 const express = require('express');
+const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 const sharp = require('sharp');
@@ -8,6 +9,15 @@ const app = express();
 const PORT = process.env.PORT || 4002;
 const STORAGE_PATH = process.env.STORAGE_PATH || '/storage';
 const CACHE_PATH = path.join(STORAGE_PATH, 'cache');
+
+// ----- CORS: allow any origin to consume CDN assets -----
+app.use(cors({
+    origin: '*',
+    methods: ['GET', 'HEAD', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Range'],
+    exposedHeaders: ['Content-Length', 'Content-Type', 'X-CDN', 'X-Cache'],
+    maxAge: 86400, // preflight cache 24h
+}));
 
 // Ensure cache directory
 if (!fs.existsSync(CACHE_PATH)) {
