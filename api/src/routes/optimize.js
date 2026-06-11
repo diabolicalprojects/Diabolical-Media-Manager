@@ -2,8 +2,8 @@ const router = require('express').Router();
 const multer = require('multer');
 const sharp = require('sharp');
 
-// Protect against decompression DDoS by limiting file size to 15MB
-const MAX_FILE_SIZE = 15 * 1024 * 1024; // 15MB
+// Protect against decompression DDoS by limiting file size to 20MB
+const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
 
 const upload = multer({
     storage: multer.memoryStorage(),

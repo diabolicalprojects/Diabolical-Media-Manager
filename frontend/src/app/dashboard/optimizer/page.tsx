@@ -286,7 +286,7 @@ export default function ImageOptimizerPage() {
                                         <span className="text-muted"> or drag & drop</span>
                                     </p>
                                     <p className="text-xs text-muted">Supports JPG, JPEG, PNG, TIFF, AVIF, GIF</p>
-                                    <p className="text-[10px] text-muted/60">Maximum file size: 15MB</p>
+                                    <p className="text-[10px] text-muted/60">Maximum file size: 20MB</p>
                                 </div>
                             </div>
                         </div>
