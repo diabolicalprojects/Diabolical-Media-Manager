@@ -15,6 +15,7 @@ import {
     Menu,
     X,
     ChevronRight,
+    Sparkles,
 } from "lucide-react";
 
 interface User {
@@ -31,6 +32,7 @@ const navItems = [
     { href: "/dashboard/domains", label: "Domains", icon: Globe },
     { href: "/dashboard/media", label: "Media Library", icon: Image },
     { href: "/dashboard/upload", label: "Upload", icon: Upload },
+    { href: "/dashboard/optimizer", label: "Image Optimizer", icon: Sparkles },
     { href: "/dashboard/search", label: "Search", icon: Search },
     { href: "/dashboard/users", label: "Users", icon: UserCog },
 ];

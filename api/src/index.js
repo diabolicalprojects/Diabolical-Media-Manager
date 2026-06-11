@@ -13,6 +13,7 @@ const imageRoutes = require('./routes/images');
 const tagRoutes = require('./routes/tags');
 const userRoutes = require('./routes/users');
 const keyRoutes = require('./routes/keys');
+const optimizeRoutes = require('./routes/optimize');
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -48,6 +49,7 @@ app.use('/api/images', imageRoutes);
 app.use('/api/tags', tagRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/keys', keyRoutes);
+app.use('/api/v1/optimize', optimizeRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
