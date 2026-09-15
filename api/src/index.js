@@ -14,6 +14,7 @@ const tagRoutes = require('./routes/tags');
 const userRoutes = require('./routes/users');
 const keyRoutes = require('./routes/keys');
 const optimizeRoutes = require('./routes/optimize');
+const provisionRoutes = require('./routes/provision');
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -48,6 +49,8 @@ app.use('/api/domains', domainRoutes);
 app.use('/api/images', imageRoutes);
 app.use('/api/tags', tagRoutes);
 app.use('/api/users', userRoutes);
+// One call that sets up a whole client: two projects and a key for each.
+app.use('/api/provision', provisionRoutes);
 app.use('/api/keys', keyRoutes);
 app.use('/api/v1/optimize', optimizeRoutes);
 

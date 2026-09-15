@@ -21,15 +21,48 @@ async function authenticateToken(req, res, next) {
         return res.status(401).json({ error: 'Access token or API Key required' });
     }
 
+    /*
+     * Service keys: for another system, not a person.
+     *
+     * Provisioning a new client used to require an admin's login token, which
+     * meant whatever did it was borrowing a human identity — one that expires
+     * without warning, that carries every permission that person has, and that
+     * cannot be revoked without changing their password. A service key expires
+     * never, does only what provisioning needs, and is revoked on its own.
+     *
+     * The prefix differs from a project key on purpose: a leaked credential
+     * should say what it can do without anyone having to try it.
+     */
+    if (token.startsWith('dmms_')) {
+        try {
+            const result = await db.query(
+                `SELECT id, name FROM api_keys WHERE key = $1 AND scope = 'service'`,
+                [token]
+            );
+            if (result.rows.length === 0) {
+                return res.status(403).json({ error: 'Invalid API Key' });
+            }
+
+            req.user = { role: 'service', api_key_id: result.rows[0].id };
+            db.query('UPDATE api_keys SET last_used_at = NOW() WHERE id = $1', [
+                result.rows[0].id,
+            ]).catch(console.error);
+            return next();
+        } catch (dbError) {
+            console.error('[Service Key Auth Error]', dbError);
+            return res.status(500).json({ error: 'Authentication service unavailable' });
+        }
+    }
+
     // Validate API Key
     if (token.startsWith('dmm_')) {
         try {
             const keyResult = await db.query(
-                `SELECT ak.id, ak.client_id as explicit_client, ak.project_id, p.client_id as project_client, c.id as client_id 
+                `SELECT ak.id, ak.client_id as explicit_client, ak.project_id, p.client_id as project_client, c.id as client_id
                  FROM api_keys ak
                  LEFT JOIN projects p ON p.id = ak.project_id
                  LEFT JOIN clients c ON c.id = COALESCE(ak.client_id, p.client_id)
-                 WHERE ak.key = $1`,
+                 WHERE ak.key = $1 AND ak.scope = 'project'`,
                  [token]
             );
             if (keyResult.rows.length === 0) {

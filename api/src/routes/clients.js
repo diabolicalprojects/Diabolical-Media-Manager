@@ -26,7 +26,7 @@ router.get('/:id', authenticateToken, async (req, res, next) => {
 });
 
 // POST /api/clients
-router.post('/', authenticateToken, authorizeRoles('admin'), async (req, res, next) => {
+router.post('/', authenticateToken, authorizeRoles('admin', 'service'), async (req, res, next) => {
     try {
         const { name, slug } = req.body;
         if (!name || !slug) {

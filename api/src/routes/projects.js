@@ -46,7 +46,7 @@ router.get('/:id', authenticateToken, async (req, res, next) => {
 });
 
 // POST /api/projects
-router.post('/', authenticateToken, authorizeRoles('admin', 'editor'), async (req, res, next) => {
+router.post('/', authenticateToken, authorizeRoles('admin', 'editor', 'service'), async (req, res, next) => {
     try {
         const { client_id, name, slug } = req.body;
         if (!client_id || !name || !slug) {

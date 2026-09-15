@@ -83,10 +83,29 @@ CREATE TABLE IF NOT EXISTS api_keys (
   client_id UUID REFERENCES clients(id) ON DELETE CASCADE,
   name VARCHAR(255) NOT NULL,
   key VARCHAR(255) UNIQUE NOT NULL,
+  -- 'project' keys belong to one project and can only touch its images.
+  -- 'service' keys belong to nobody: they exist so another system can create
+  -- clients and projects without borrowing a person's admin login, which
+  -- expires and carries far more power than provisioning needs.
+  scope VARCHAR(20) NOT NULL DEFAULT 'project',
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   last_used_at TIMESTAMP WITH TIME ZONE,
-  CHECK (project_id IS NOT NULL OR client_id IS NOT NULL)
+  CHECK (scope = 'service' OR project_id IS NOT NULL OR client_id IS NOT NULL)
 );
+
+-- Existing databases: add the column, then relax the old constraint so a
+-- service key may have neither a project nor a client.
+ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS scope VARCHAR(20) NOT NULL DEFAULT 'project';
+ALTER TABLE api_keys DROP CONSTRAINT IF EXISTS api_keys_check;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'api_keys_scope_owner_check'
+  ) THEN
+    ALTER TABLE api_keys ADD CONSTRAINT api_keys_scope_owner_check
+      CHECK (scope = 'service' OR project_id IS NOT NULL OR client_id IS NOT NULL);
+  END IF;
+END $$;
 
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_images_client ON images(client_id);
@@ -101,6 +120,7 @@ CREATE INDEX IF NOT EXISTS idx_image_tags_tag ON image_tags(tag_id);
 CREATE INDEX IF NOT EXISTS idx_api_keys_project ON api_keys(project_id);
 CREATE INDEX IF NOT EXISTS idx_api_keys_client ON api_keys(client_id);
 CREATE INDEX IF NOT EXISTS idx_api_keys_key ON api_keys(key);
+CREATE INDEX IF NOT EXISTS idx_api_keys_scope ON api_keys(scope);
 `;
 
 async function migrate() {
